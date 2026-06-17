@@ -1,0 +1,1759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>MotoRush – City Delivery</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; touch-action: none; }
+  #gameCanvas { display: block; width: 100vw; height: 100vh; }
+
+  /* ── HUD ─────────────────────────────────────────── */
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+
+  /* Speedometer – bottom left */
+  #speedometer {
+    position: absolute; bottom: 20px; left: 20px;
+    background: rgba(0,0,0,0.65); border: 2px solid #ff6b00;
+    border-radius: 12px; padding: 10px 16px; color: #fff;
+    text-align: center; min-width: 90px;
+  }
+  #speedValue { font-size: 32px; font-weight: 700; color: #ff6b00; line-height:1; }
+  #speedLabel { font-size: 11px; opacity: 0.7; margin-top:2px; }
+
+  /* Coins – top left */
+  #coinDisplay {
+    position: absolute; top: 14px; left: 14px;
+    background: rgba(0,0,0,0.65); border: 2px solid #ffd700;
+    border-radius: 10px; padding: 8px 14px; color: #ffd700;
+    font-size: 20px; font-weight: 700;
+  }
+
+  /* Mission panel – top centre */
+  #missionPanel {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.72); border: 2px solid #00e5ff;
+    border-radius: 12px; padding: 10px 20px; color: #fff;
+    text-align: center; min-width: 220px; max-width: 90vw;
+  }
+  #missionTitle { font-size: 12px; color: #00e5ff; text-transform: uppercase; letter-spacing:1px; }
+  #missionDesc  { font-size: 14px; margin-top: 4px; }
+  #missionTimer { font-size: 22px; font-weight: 700; color: #ff4444; margin-top: 4px; }
+
+  /* Minimap – bottom right */
+  #minimap {
+    position: absolute; bottom: 20px; right: 20px;
+    width: 130px; height: 130px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.4);
+    overflow: hidden; background: rgba(20,30,50,0.85);
+  }
+  #minimapCanvas { width: 130px; height: 130px; }
+
+  /* Notification toast */
+  #toast {
+    position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.85); border: 2px solid #00e5ff;
+    border-radius: 10px; padding: 10px 22px; color: #fff;
+    font-size: 16px; text-align: center; opacity: 0;
+    transition: opacity 0.3s; pointer-events: none; white-space: nowrap;
+  }
+
+  /* Day/Night indicator */
+  #timeIndicator {
+    position: absolute; top: 14px; right: 14px;
+    background: rgba(0,0,0,0.65); border: 2px solid #888;
+    border-radius: 10px; padding: 6px 12px; color: #fff; font-size: 13px;
+  }
+
+  /* ── MENUS ────────────────────────────────────────── */
+  .screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(160deg,#0a0a1a 0%,#111128 60%,#0d1a0d 100%);
+    z-index: 100; color: #fff;
+  }
+  .screen.hidden { display: none; }
+
+  .logo {
+    font-size: clamp(36px,8vw,72px); font-weight: 900;
+    color: #ff6b00; text-shadow: 0 0 30px #ff6b0088;
+    letter-spacing: -2px; line-height: 1;
+  }
+  .logo span { color: #ffd700; }
+  .subtitle { font-size: 15px; color: #aaa; margin: 8px 0 32px; letter-spacing: 3px; text-transform: uppercase; }
+
+  .btn {
+    padding: 14px 36px; font-size: 18px; font-weight: 700;
+    border: none; border-radius: 10px; cursor: pointer;
+    margin: 8px; transition: transform 0.1s, box-shadow 0.1s;
+    text-transform: uppercase; letter-spacing: 1px;
+    pointer-events: all;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: #ff6b00; color: #fff; box-shadow: 0 4px 20px #ff6b0066; }
+  .btn-secondary { background: #1a2a3a; color: #00e5ff; border: 2px solid #00e5ff; }
+  .btn-gold { background: #ffd700; color: #111; box-shadow: 0 4px 20px #ffd70055; }
+
+  /* Shop */
+  #shopScreen .shop-grid {
+    display: grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr));
+    gap: 14px; width: 90vw; max-width: 680px;
+    max-height: 55vh; overflow-y: auto; padding: 4px;
+  }
+  .shop-item {
+    background: rgba(255,255,255,0.05); border: 2px solid #333;
+    border-radius: 12px; padding: 14px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .shop-item.owned  { border-color: #00e5ff; }
+  .shop-item.equipped { border-color: #ffd700; background: rgba(255,215,0,0.08); }
+  .shop-item h3 { font-size: 14px; margin-bottom: 6px; }
+  .shop-item .price { color: #ffd700; font-weight: 700; font-size: 15px; }
+  .shop-item .stat  { color: #aaa; font-size: 12px; margin-top:4px; }
+  .shop-icon { font-size: 36px; margin-bottom: 8px; }
+
+  /* ── MOBILE CONTROLS ─────────────────────────────── */
+  #mobileControls {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 200px;
+    pointer-events: none; z-index: 20; display: none;
+  }
+  #joystickZone {
+    position: absolute; bottom: 20px; left: 20px;
+    width: 130px; height: 130px; pointer-events: all;
+  }
+  #joystickBase {
+    width: 130px; height: 130px; border-radius: 50%;
+    background: rgba(255,255,255,0.10); border: 2px solid rgba(255,255,255,0.3);
+    position: relative;
+  }
+  #joystickThumb {
+    width: 50px; height: 50px; border-radius: 50%;
+    background: rgba(255,107,0,0.8); border: 2px solid #ff6b00;
+    position: absolute; top: 40px; left: 40px;
+    transition: none;
+  }
+  #mobileRight {
+    position: absolute; bottom: 20px; right: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    align-items: center; pointer-events: all;
+  }
+  .mBtn {
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.4);
+    background: rgba(0,0,0,0.5); color: #fff;
+    font-size: 22px; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; pointer-events: all;
+    user-select: none; -webkit-user-select: none;
+  }
+  #btnBrake { background: rgba(255,50,50,0.4); border-color: #ff4444; }
+  #btnAccel { background: rgba(0,200,0,0.4); border-color: #00cc00; }
+  #btnShop  { background: rgba(0,150,255,0.3); border-color: #00aaff; font-size:14px; }
+
+  /* Pause */
+  #pauseOverlay {
+    display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.7); z-index: 50;
+    flex-direction:column; align-items:center; justify-content:center;
+    color:#fff;
+  }
+  #pauseOverlay.visible { display:flex; }
+  #pauseOverlay h2 { font-size:40px; margin-bottom:20px; color:#ff6b00; }
+
+  /* Loading bar */
+  #loadingScreen {
+    position: fixed; top:0; left:0; width:100%; height:100%;
+    background: #050510; z-index:200;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#fff; gap:16px;
+  }
+  #loadBar { width:260px; height:8px; background:#1a1a2a; border-radius:4px; overflow:hidden; }
+  #loadFill { height:100%; background:#ff6b00; border-radius:4px; transition:width 0.2s; }
+  #loadText  { color:#aaa; font-size:14px; }
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loadingScreen">
+  <div class="logo">MOTO<span>RUSH</span></div>
+  <div id="loadBar"><div id="loadFill" style="width:0%"></div></div>
+  <div id="loadText">Building the city…</div>
+</div>
+
+<!-- Main Menu -->
+<div id="menuScreen" class="screen hidden">
+  <div class="logo">MOTO<span>RUSH</span></div>
+  <div class="subtitle">City Delivery</div>
+  <button class="btn btn-primary" onclick="Game.startGame()">▶ Play</button>
+  <button class="btn btn-secondary" onclick="UI.openShop('bike')">🏍 Bike Shop</button>
+  <button class="btn btn-secondary" onclick="UI.openShop('skin')">🎨 Skins</button>
+  <button class="btn btn-gold" onclick="UI.resetSave()">↺ Reset Save</button>
+  <div style="margin-top:18px;color:#666;font-size:13px;">
+    WASD / Arrow Keys to drive &nbsp;|&nbsp; E to accept mission
+  </div>
+</div>
+
+<!-- Shop -->
+<div id="shopScreen" class="screen hidden">
+  <h2 id="shopTitle" style="margin-bottom:16px;font-size:28px;"></h2>
+  <div id="coinDisplayShop" style="color:#ffd700;font-size:20px;font-weight:700;margin-bottom:14px;"></div>
+  <div class="shop-grid" id="shopGrid"></div>
+  <button class="btn btn-secondary" style="margin-top:18px;pointer-events:all;"
+    onclick="UI.closeShop()">← Back</button>
+</div>
+
+<!-- HUD (visible during gameplay) -->
+<div id="hud" class="hidden">
+  <div id="coinDisplay">🪙 <span id="coinValue">0</span></div>
+  <div id="missionPanel">
+    <div id="missionTitle">NO ACTIVE MISSION</div>
+    <div id="missionDesc">Press E or tap Accept to start</div>
+    <div id="missionTimer"></div>
+  </div>
+  <div id="timeIndicator">🌞 DAY</div>
+  <div id="speedometer">
+    <div id="speedValue">0</div>
+    <div id="speedLabel">km/h</div>
+  </div>
+  <div id="minimap"><canvas id="minimapCanvas" width="130" height="130"></canvas></div>
+  <div id="toast"></div>
+
+  <!-- In-game buttons (pointer-events enabled selectively) -->
+  <div style="position:absolute;top:14px;right:60px;pointer-events:all;">
+    <button class="btn btn-secondary" style="padding:8px 14px;font-size:13px;"
+      onclick="UI.openShop('bike')">🏍</button>
+    <button class="btn btn-secondary" style="padding:8px 14px;font-size:13px;"
+      onclick="UI.openShop('skin')">🎨</button>
+  </div>
+  <div style="position:absolute;bottom:170px;right:20px;pointer-events:all;">
+    <button class="btn btn-primary" style="padding:10px 20px;font-size:14px;"
+      id="acceptBtn" onclick="Game.acceptMission()">Accept Mission [E]</button>
+  </div>
+</div>
+
+<!-- Mobile Controls -->
+<div id="mobileControls">
+  <div id="joystickZone">
+    <div id="joystickBase"><div id="joystickThumb"></div></div>
+  </div>
+  <div id="mobileRight">
+    <button class="mBtn" id="btnShop" onclick="UI.openShop('bike')">🏍</button>
+    <button class="mBtn" id="btnBrake">✋</button>
+    <button class="mBtn" id="btnAccel">⚡</button>
+  </div>
+</div>
+
+<!-- Pause -->
+<div id="pauseOverlay">
+  <h2>PAUSED</h2>
+  <button class="btn btn-primary" onclick="Game.togglePause()">Resume</button>
+  <button class="btn btn-secondary" onclick="Game.backToMenu()">Main Menu</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- Three.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   MOTO RUSH – Complete Game
+   Sections:
+   1. CONSTANTS & DATA
+   2. SAVE SYSTEM
+   3. CITY BUILDER
+   4. MOTORCYCLE PHYSICS
+   5. TRAFFIC SYSTEM
+   6. MISSION SYSTEM
+   7. DAY/NIGHT CYCLE
+   8. MINIMAP
+   9. UI MANAGER
+   10. MOBILE CONTROLS
+   11. GAME CONTROLLER
+═══════════════════════════════════════════════════════ */
+
+// ──────────────────────────────────────────────────────
+// 1. CONSTANTS & DATA
+// ──────────────────────────────────────────────────────
+const CITY_SIZE     = 400;   // half-width of the city in world units
+const BLOCK_SIZE    = 40;    // size of one city block
+const ROAD_WIDTH    = 12;    // width of roads
+const NUM_BUILDINGS = 260;   // total buildings to place
+const TRAFFIC_COUNT = 18;    // traffic vehicles
+const MISSION_TIME  = 120;   // seconds per mission
+
+// Bike catalogue – speeds tuned for natural feel
+// maxSpeed = speed * 0.032 (world units/frame at 60fps)
+const BIKES = [
+  { id:'basic',   name:'Courier',   price:0,    speed:14, accel:0.07, icon:'🛵', color:0x4488ff, desc:'Starter bike' },
+  { id:'sport',   name:'Speedster', price:800,  speed:20, accel:0.10, icon:'🏍', color:0xff2222, desc:'Fast & furious' },
+  { id:'chopper', name:'Chopper',   price:1800, speed:17, accel:0.08, icon:'🏍', color:0x222222, desc:'Heavy cruiser' },
+  { id:'turbo',   name:'Turbo-X',   price:3500, speed:26, accel:0.13, icon:'🏎', color:0x00ff88, desc:'Max speed' },
+];
+
+// Skin catalogue
+const SKINS = [
+  { id:'default',  name:'Classic',   price:0,    icon:'👤', helmetColor:0xff6600, bodyColor:0x222233 },
+  { id:'racer',    name:'Racer',     price:300,  icon:'🏁', helmetColor:0xffffff, bodyColor:0xff0000 },
+  { id:'cyber',    name:'Cyberpunk', price:600,  icon:'🤖', helmetColor:0x00ffff, bodyColor:0x110022 },
+  { id:'golden',   name:'Golden',    price:1200, icon:'🥇', helmetColor:0xffd700, bodyColor:0xffd700 },
+];
+
+// Road colours for minimap
+const MINIMAP_ROAD  = '#1a2233';
+const MINIMAP_BLOCK = '#0d1a0d';
+const MINIMAP_PLAYER= '#ff6b00';
+const MINIMAP_PICKUP= '#00e5ff';
+const MINIMAP_DROP  = '#ff4444';
+
+
+// ──────────────────────────────────────────────────────
+// 2. SAVE SYSTEM
+// ──────────────────────────────────────────────────────
+const Save = {
+  KEY: 'motorush_save',
+  defaults() {
+    return {
+      coins: 0,
+      ownedBikes: ['basic'],
+      equippedBike: 'basic',
+      ownedSkins: ['default'],
+      equippedSkin: 'default',
+      totalDeliveries: 0,
+    };
+  },
+  load() {
+    try {
+      const raw = localStorage.getItem(this.KEY);
+      if (!raw) return this.defaults();
+      return { ...this.defaults(), ...JSON.parse(raw) };
+    } catch { return this.defaults(); }
+  },
+  save(data) {
+    try { localStorage.setItem(this.KEY, JSON.stringify(data)); } catch {}
+  },
+  reset() {
+    localStorage.removeItem(this.KEY);
+    location.reload();
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 3. CITY BUILDER
+// ──────────────────────────────────────────────────────
+const CityBuilder = {
+  // Returns all Three.js meshes that make up the city
+  build(scene) {
+    const meshes = [];
+
+    // Ground plane
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(CITY_SIZE * 2.4, CITY_SIZE * 2.4),
+      new THREE.MeshLambertMaterial({ color: 0x1a2a1a })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Road network (grid of intersecting roads)
+    this._buildRoads(scene);
+
+    // Buildings filling the blocks
+    this._buildBuildings(scene, meshes);
+
+    // Boundary walls (invisible collision) – just extend ground
+    return meshes;
+  },
+
+  _buildRoads(scene) {
+    const roadMat = new THREE.MeshLambertMaterial({ color: 0x2a2a35 });
+    const lineMat = new THREE.MeshLambertMaterial({ color: 0xffff88 });
+
+    // Grid spacing: a block + road
+    const step = BLOCK_SIZE + ROAD_WIDTH;
+    const halfCity = CITY_SIZE;
+
+    for (let x = -halfCity; x <= halfCity; x += step) {
+      // Vertical road strip
+      const vRoad = new THREE.Mesh(
+        new THREE.PlaneGeometry(ROAD_WIDTH, halfCity * 2),
+        roadMat
+      );
+      vRoad.rotation.x = -Math.PI / 2;
+      vRoad.position.set(x, 0.01, 0);
+      scene.add(vRoad);
+
+      // Centre dashes on vertical road
+      for (let z = -halfCity + 8; z < halfCity; z += 14) {
+        const dash = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.4, 5),
+          lineMat
+        );
+        dash.rotation.x = -Math.PI / 2;
+        dash.position.set(x, 0.02, z);
+        scene.add(dash);
+      }
+    }
+
+    for (let z = -halfCity; z <= halfCity; z += step) {
+      // Horizontal road strip
+      const hRoad = new THREE.Mesh(
+        new THREE.PlaneGeometry(halfCity * 2, ROAD_WIDTH),
+        roadMat
+      );
+      hRoad.rotation.x = -Math.PI / 2;
+      hRoad.position.set(0, 0.01, z);
+      scene.add(hRoad);
+
+      for (let x = -halfCity + 8; x < halfCity; x += 14) {
+        const dash = new THREE.Mesh(
+          new THREE.PlaneGeometry(5, 0.4),
+          lineMat
+        );
+        dash.rotation.x = -Math.PI / 2;
+        dash.position.set(x, 0.02, z);
+        scene.add(dash);
+      }
+    }
+  },
+
+  _buildBuildings(scene, meshes) {
+    const palettes = [
+      0x8899aa, 0x667788, 0x445566,
+      0x886655, 0x776644, 0x554433,
+      0x558866, 0x446655, 0x335544,
+      0xaa8855, 0x998844, 0x776633,
+    ];
+
+    const step     = BLOCK_SIZE + ROAD_WIDTH;  // 52
+    const halfCity = CITY_SIZE;
+    const placed   = [];
+
+    // Safety margin: keep buildings at least this far from road edges
+    const MARGIN = 4;
+    // Max building footprint so it can't overflow the block
+    const MAX_FOOT = BLOCK_SIZE - MARGIN * 2;  // 32
+
+    // Collect all block centres
+    const blockCentres = [];
+    for (let x = -halfCity + ROAD_WIDTH / 2 + BLOCK_SIZE / 2; x < halfCity; x += step) {
+      for (let z = -halfCity + ROAD_WIDTH / 2 + BLOCK_SIZE / 2; z < halfCity; z += step) {
+        blockCentres.push(new THREE.Vector2(x, z));
+      }
+    }
+
+    for (let i = 0; i < NUM_BUILDINGS; i++) {
+      const centre = blockCentres[i % blockCentres.length];
+
+      // Building size – capped so it never overflows the block
+      const w = 5 + Math.random() * (MAX_FOOT * 0.7);
+      const d = 5 + Math.random() * (MAX_FOOT * 0.7);
+      const h = 5 + Math.random() * 38;
+      const col = palettes[Math.floor(Math.random() * palettes.length)];
+
+      // Offset inside block – clamped so edges never cross road
+      const maxOffX = (MAX_FOOT - w) * 0.5;
+      const maxOffZ = (MAX_FOOT - d) * 0.5;
+      const offsetX = (Math.random() - 0.5) * 2 * Math.max(0, maxOffX);
+      const offsetZ = (Math.random() - 0.5) * 2 * Math.max(0, maxOffZ);
+
+      const bx = centre.x + offsetX;
+      const bz = centre.y + offsetZ;
+
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshLambertMaterial({ color: col })
+      );
+      mesh.position.set(bx, h / 2, bz);
+      mesh.castShadow    = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      meshes.push(mesh);
+
+      // Rooftop accent
+      const roof = new THREE.Mesh(
+        new THREE.BoxGeometry(w + 0.6, 0.5, d + 0.6),
+        new THREE.MeshLambertMaterial({ color: 0xcccccc })
+      );
+      roof.position.set(bx, h + 0.25, bz);
+      scene.add(roof);
+
+      placed.push({ x: bx, z: bz, w, d });
+    }
+
+    // Also store a "clear zone" at spawn (0,0) – collision code uses buildingData
+    // We already avoided placing buildings there via block maths, but just to be safe:
+    this.buildingData = placed.filter(b =>
+      !(Math.abs(b.x) < 18 && Math.abs(b.z) < 18)   // keep spawn crossroads clear
+    );
+  },
+
+  // Snap a world position to the nearest road centre
+  snapToRoad(pos) {
+    const step = BLOCK_SIZE + ROAD_WIDTH;
+    // Find nearest vertical or horizontal road line
+    const rx = Math.round(pos.x / step) * step;
+    const rz = Math.round(pos.z / step) * step;
+    // Return the axis that is closer
+    if (Math.abs(pos.x - rx) < Math.abs(pos.z - rz)) {
+      return new THREE.Vector3(rx, 0, pos.z);
+    } else {
+      return new THREE.Vector3(pos.x, 0, rz);
+    }
+  },
+
+  // Pick a random road position
+  randomRoadPoint() {
+    const step  = BLOCK_SIZE + ROAD_WIDTH;
+    const half  = CITY_SIZE - step;
+    const roads = [];
+    for (let v = -half; v <= half; v += step) {
+      roads.push(v);
+    }
+    const rx = roads[Math.floor(Math.random() * roads.length)];
+    const rz = roads[Math.floor(Math.random() * roads.length)];
+    // Add slight offset so pickup/drop aren't exactly on the grid cross
+    return new THREE.Vector3(
+      rx + (Math.random() - 0.5) * (ROAD_WIDTH - 2),
+      0,
+      rz + (Math.random() - 0.5) * (ROAD_WIDTH - 2)
+    );
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 4. MOTORCYCLE PHYSICS
+// ──────────────────────────────────────────────────────
+const Moto = {
+  // Public state
+  mesh: null,
+  speed: 0,         // current forward speed
+  heading: 0,       // Y-axis rotation in radians
+  leanAngle: 0,     // visual lean (Z-rotation)
+  position: new THREE.Vector3(0, 0, 0),
+
+  // Physics tuning – natural, realistic feel
+  maxSpeed: 0,
+  accel: 0,
+  brakeForce: 0.30,   // gradual braking
+  friction: 0.985,    // slow coast-down (feels heavy)
+  steerSpeed: 0.025,  // slower turning radius
+  maxLean: 0.22,      // subtle lean
+
+  // Controls (set by keyboard/mobile)
+  input: { forward: false, back: false, left: false, right: false },
+
+  // Bike + rider group
+  _group: null,
+  _rider: null,
+
+  create(scene, bikeData, skinData) {
+    // Remove old if it exists
+    if (this._group) scene.remove(this._group);
+
+    this.maxSpeed   = bikeData.speed * 0.032;  // convert to world units
+    this.accel      = bikeData.accel;
+
+    this._group = new THREE.Group();
+
+    // ── Bike body ─────────────────────────────
+    const bodyMat = new THREE.MeshLambertMaterial({ color: bikeData.color });
+    const chromeMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+    const blackMat  = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const redMat    = new THREE.MeshLambertMaterial({ color: 0xff2200 });
+
+    // Main frame
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.55, 2.2), bodyMat
+    );
+    frame.position.y = 0.7;
+
+    // Front fairing
+    const fairing = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.45, 0.6), bodyMat
+    );
+    fairing.position.set(0, 1.05, 0.9);
+
+    // Seat / tail
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.18, 0.9),
+      new THREE.MeshLambertMaterial({ color: 0x222222 })
+    );
+    seat.position.set(0, 1.03, -0.3);
+
+    // Wheels
+    const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.2, 10);
+    const frontWheel = new THREE.Mesh(wheelGeo, blackMat);
+    frontWheel.rotation.z = Math.PI / 2;
+    frontWheel.position.set(0, 0.36, 0.85);
+
+    const backWheel = new THREE.Mesh(wheelGeo, blackMat);
+    backWheel.rotation.z = Math.PI / 2;
+    backWheel.position.set(0, 0.36, -0.85);
+
+    // Exhaust pipe
+    const pipe = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.9, 6), chromeMat
+    );
+    pipe.rotation.x = Math.PI / 2;
+    pipe.position.set(0.3, 0.52, -0.45);
+
+    // Headlight
+    const headlight = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 6, 6),
+      new THREE.MeshLambertMaterial({ color: 0xffffcc, emissive: 0xffffcc, emissiveIntensity: 0 })
+    );
+    headlight.position.set(0, 1.0, 1.1);
+    this._headlightMesh = headlight;
+
+    // Tail light
+    const tailLight = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.1, 0.06), redMat
+    );
+    tailLight.position.set(0, 0.95, -1.12);
+
+    // Handlebars
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.07, 0.07), chromeMat
+    );
+    bar.position.set(0, 1.28, 0.72);
+
+    this._group.add(frame, fairing, seat, frontWheel, backWheel, pipe, headlight, tailLight, bar);
+
+    // ── Rider ──────────────────────────────────
+    const helmetMat = new THREE.MeshLambertMaterial({ color: skinData.helmetColor });
+    const bodyMat2  = new THREE.MeshLambertMaterial({ color: skinData.bodyColor });
+
+    // Torso
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.55, 0.35), bodyMat2);
+    torso.position.set(0, 1.55, -0.1);
+
+    // Helmet
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.22, 7, 7), helmetMat);
+    helmet.position.set(0, 2.08, 0.0);
+
+    // Visor
+    const visor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.1, 0.06),
+      new THREE.MeshLambertMaterial({ color: 0x001133, transparent: true, opacity: 0.7 })
+    );
+    visor.position.set(0, 2.06, 0.22);
+
+    // Arms
+    const armGeo = new THREE.BoxGeometry(0.12, 0.12, 0.38);
+    const lArm = new THREE.Mesh(armGeo, bodyMat2);
+    lArm.position.set( 0.27, 1.6, 0.26);
+    lArm.rotation.x = -0.4;
+    const rArm = new THREE.Mesh(armGeo, bodyMat2);
+    rArm.position.set(-0.27, 1.6, 0.26);
+    rArm.rotation.x = -0.4;
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.14, 0.42, 0.14);
+    const lLeg = new THREE.Mesh(legGeo, bodyMat2);
+    lLeg.position.set( 0.2, 1.08, -0.1);
+    const rLeg = new THREE.Mesh(legGeo, bodyMat2);
+    rLeg.position.set(-0.2, 1.08, -0.1);
+
+    this._group.add(torso, helmet, visor, lArm, rArm, lLeg, rLeg);
+
+    // Store references for animation
+    this._frontWheel = frontWheel;
+    this._backWheel  = backWheel;
+
+    scene.add(this._group);
+    this.mesh = this._group;
+    this.position.set(0, 0, 0);
+    this._group.position.copy(this.position);
+  },
+
+  update(delta, buildings) {
+    const inp = this.input;
+
+    // Acceleration / braking
+    if (inp.forward) {
+      this.speed = Math.min(this.speed + this.accel * delta * 60, this.maxSpeed);
+    } else if (inp.back) {
+      this.speed = Math.max(this.speed - this.brakeForce * delta * 60, -this.maxSpeed * 0.4);
+    } else {
+      // Coast friction
+      this.speed *= Math.pow(this.friction, delta * 60);
+      if (Math.abs(this.speed) < 0.001) this.speed = 0;
+    }
+
+    // Steering – only effective when moving
+    if (Math.abs(this.speed) > 0.02) {
+      const steerDir = inp.left ? 1 : inp.right ? -1 : 0;
+      this.heading += steerDir * this.steerSpeed * delta * 60 * Math.min(Math.abs(this.speed) / this.maxSpeed + 0.3, 1);
+    }
+
+    // Move forward along heading
+    const dx = Math.sin(this.heading) * this.speed * delta * 60;
+    const dz = Math.cos(this.heading) * this.speed * delta * 60;
+
+    const newPos = this.position.clone().add(new THREE.Vector3(dx, 0, dz));
+
+    // Clamp to city bounds
+    newPos.x = Math.max(-CITY_SIZE + 2, Math.min(CITY_SIZE - 2, newPos.x));
+    newPos.z = Math.max(-CITY_SIZE + 2, Math.min(CITY_SIZE - 2, newPos.z));
+
+    // Simple building collision – push back
+    if (!this._collidesWithBuildings(newPos, buildings)) {
+      this.position.copy(newPos);
+    } else {
+      this.speed *= -0.3; // bounce
+    }
+
+    // Lean into turns
+    const steerDir2 = inp.left ? 1 : inp.right ? -1 : 0;
+    const targetLean = steerDir2 * this.maxLean * Math.min(Math.abs(this.speed) / this.maxSpeed, 1);
+    this.leanAngle += (targetLean - this.leanAngle) * 0.12 * delta * 60;
+
+    // Apply to mesh
+    this._group.position.copy(this.position);
+    this._group.position.y = 0;
+    this._group.rotation.y = this.heading;
+    this._group.rotation.z = this.leanAngle;
+
+    // Spin wheels
+    const wheelSpin = this.speed * 5 * delta * 60;
+    if (this._frontWheel) this._frontWheel.rotation.y += wheelSpin;
+    if (this._backWheel)  this._backWheel.rotation.y  += wheelSpin;
+  },
+
+  _collidesWithBuildings(pos, buildings) {
+    for (const b of buildings) {
+      // Simple AABB check
+      const hw = b.w / 2 + 1.2;
+      const hd = b.d / 2 + 1.2;
+      if (Math.abs(pos.x - b.x) < hw && Math.abs(pos.z - b.z) < hd) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  // Speed in km/h for display (calibrated to new physics)
+  getSpeedKmh() {
+    return Math.round(Math.abs(this.speed) * 1100);
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 5. TRAFFIC SYSTEM
+// Cars drive in lanes on the road grid, turn at intersections
+// ──────────────────────────────────────────────────────
+const Traffic = {
+  vehicles: [],
+  _roadCoords: [],   // list of all road axis values
+
+  create(scene) {
+    const carColors = [0xcc3333, 0x3355cc, 0x33aa55, 0xccaa22, 0xaa55aa, 0x55aaaa, 0xee6600, 0x996699];
+
+    // Build the list of road coordinates (same grid as city builder)
+    const step = BLOCK_SIZE + ROAD_WIDTH;
+    const half = CITY_SIZE - step;
+    const roads = [];
+    for (let v = -half; v <= half; v += step) roads.push(v);
+    this._roadCoords = roads;
+    this._step = step;
+    this._half = half;
+
+    for (let i = 0; i < TRAFFIC_COUNT; i++) {
+      const group    = new THREE.Group();
+      const col      = carColors[i % carColors.length];
+      const bodyMat  = new THREE.MeshLambertMaterial({ color: col });
+      const winMat   = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.55 });
+      const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+
+      // Body
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.7, 3.6), bodyMat);
+      body.position.y = 0.55;
+      // Cabin
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.55, 2.0), bodyMat);
+      cab.position.set(0, 1.13, -0.05);
+      // Front + rear windshields
+      const fWin = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.38, 0.07), winMat);
+      fWin.position.set(0, 1.18, 0.97);
+      const rWin = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.38, 0.07), winMat);
+      rWin.position.set(0, 1.18, -1.07);
+      // Wheels
+      const wGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.22, 8);
+      for (const [wx, wz] of [[0.92,1.2],[-0.92,1.2],[0.92,-1.2],[-0.92,-1.2]]) {
+        const wh = new THREE.Mesh(wGeo, wheelMat);
+        wh.rotation.z = Math.PI / 2;
+        wh.position.set(wx, 0.3, wz);
+        group.add(wh);
+      }
+      group.add(body, cab, fWin, rWin);
+      scene.add(group);
+
+      // Pick a random road and lane offset
+      // isHoriz=true  → car moves along X axis (horizontal road at fixed Z)
+      // isHoriz=false → car moves along Z axis (vertical road at fixed X)
+      const isHoriz  = i % 2 === 0;
+      const roadIdx  = Math.floor(Math.random() * roads.length);
+      const roadVal  = roads[roadIdx];                    // the fixed axis value
+      const laneOff  = (Math.random() > 0.5 ? 1 : -1) * 1.8; // left or right lane
+      const dir      = laneOff > 0 ? 1 : -1;             // drive direction matches lane
+      const spd      = 0.045 + Math.random() * 0.035;    // slow realistic speed
+      // Random starting position along the road
+      const startVal = roads[Math.floor(Math.random() * roads.length)];
+
+      if (isHoriz) {
+        // Moves along X; fixed Z = roadVal + laneOffset
+        group.position.set(startVal, 0, roadVal + laneOff);
+        group.rotation.y = dir > 0 ? 0 : Math.PI; // face travel direction
+      } else {
+        // Moves along Z; fixed X = roadVal + laneOffset
+        group.position.set(roadVal + laneOff, 0, startVal);
+        group.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+      }
+
+      this.vehicles.push({
+        mesh: group,
+        isHoriz,
+        roadVal,      // fixed coordinate (Z if horiz, X if vert)
+        laneOff,
+        dir,
+        spd,
+      });
+    }
+  },
+
+  update(delta) {
+    const limit = this._half + 2;
+    for (const v of this.vehicles) {
+      const move = v.dir * v.spd * delta * 60;
+
+      if (v.isHoriz) {
+        v.mesh.position.x += move;
+        // Keep Z locked to lane
+        v.mesh.position.z = v.roadVal + v.laneOff;
+        // Wrap around when reaching city edge
+        if (v.mesh.position.x > limit)  v.mesh.position.x = -limit;
+        if (v.mesh.position.x < -limit) v.mesh.position.x =  limit;
+      } else {
+        v.mesh.position.z += move;
+        // Keep X locked to lane
+        v.mesh.position.x = v.roadVal + v.laneOff;
+        // Wrap around
+        if (v.mesh.position.z > limit)  v.mesh.position.z = -limit;
+        if (v.mesh.position.z < -limit) v.mesh.position.z =  limit;
+      }
+    }
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 6. MISSION SYSTEM
+// Pickup  → a visible SHOP building with signboard
+// Delivery → a visible NPC character standing on roadside
+// ──────────────────────────────────────────────────────
+
+// Shop name pool for pickup locations
+const SHOP_NAMES  = ['Pizza Palace','Burger Barn','Sushi Stop','Cake Corner',
+                     'Desi Dhaba','Chai Wala','Noodle House','Sweet Shop'];
+// NPC name pool for delivery targets
+const NPC_NAMES   = ['Ali','Sara','Bilal','Ayesha','Kamran','Zara','Hamza','Nida'];
+// NPC shirt colours
+const NPC_COLORS  = [0xff4444, 0x4488ff, 0x44cc44, 0xffaa00, 0xcc44cc, 0x00cccc];
+
+const Missions = {
+  state: 'idle',      // 'idle' | 'to_pickup' | 'to_delivery'
+  pickupPos:   null,
+  deliveryPos: null,
+  timeLeft: 0,
+  reward: 0,
+  shopName: '',
+  npcName: '',
+
+  // 3D objects that are created per-mission and cleaned up after
+  _shopGroup:    null,
+  _npcGroup:     null,
+  _pickupBeam:   null,
+  _deliverBeam:  null,
+  _pickupRing:   null,
+  _deliverRing:  null,
+  _pickupLight:  null,
+  _deliverLight: null,
+  _packageMesh:  null,   // box that attaches to bike when carrying
+
+  _scene: null,
+
+  init(scene) {
+    this._scene = scene;
+  },
+
+  // ── Build the pickup SHOP ────────────────────────────
+  _buildShop(pos, scene) {
+    const group = new THREE.Group();
+
+    // Shop building body
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0xffe0b0 });
+    const roofMat = new THREE.MeshLambertMaterial({ color: 0xcc3300 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 6), wallMat);
+    body.position.y = 2.5;
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.5, 6.4), roofMat);
+    roof.position.y = 5.25;
+
+    // Shop door
+    const doorMat = new THREE.MeshLambertMaterial({ color: 0x6b3a1f });
+    const door = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.15), doorMat);
+    door.position.set(0, 1.2, 3.08);
+
+    // Shop window
+    const winMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
+    const win = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 0.12), winMat);
+    win.position.set(-2.2, 2.4, 3.08);
+    const win2 = win.clone();
+    win2.position.set(2.2, 2.4, 3.08);
+
+    // Signboard above door
+    const signMat = new THREE.MeshLambertMaterial({ color: 0xffdd00 });
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(5.5, 1.0, 0.18), signMat);
+    sign.position.set(0, 4.6, 3.12);
+
+    // Awning stripes
+    const awningMat = new THREE.MeshLambertMaterial({ color: 0xff6600 });
+    const awning = new THREE.Mesh(new THREE.BoxGeometry(7, 0.18, 1.4), awningMat);
+    awning.position.set(0, 3.6, 3.6);
+
+    group.add(body, roof, door, win, win2, sign, awning);
+    group.position.set(pos.x, 0, pos.z);
+    scene.add(group);
+    return group;
+  },
+
+  // ── Build the delivery NPC character ────────────────
+  _buildNPC(pos, scene) {
+    const group = new THREE.Group();
+    const shirtCol = NPC_COLORS[Math.floor(Math.random() * NPC_COLORS.length)];
+    const skinCol  = 0xf5c5a0;
+
+    // Body parts
+    const torsoMat = new THREE.MeshLambertMaterial({ color: shirtCol });
+    const skinMat  = new THREE.MeshLambertMaterial({ color: skinCol });
+    const pantMat  = new THREE.MeshLambertMaterial({ color: 0x223366 });
+    const hairMat  = new THREE.MeshLambertMaterial({ color: 0x221100 });
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.32), torsoMat);
+    torso.position.y = 1.35;
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.38, 0.38), skinMat);
+    head.position.y = 1.9;
+
+    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.14, 0.40), hairMat);
+    hair.position.y = 2.07;
+
+    // Arms (waving up slightly)
+    const armGeo = new THREE.BoxGeometry(0.14, 0.48, 0.14);
+    const lArm = new THREE.Mesh(armGeo, skinMat);
+    lArm.position.set(0.36, 1.42, 0);
+    lArm.rotation.z = -0.4;
+    const rArm = new THREE.Mesh(armGeo, skinMat);
+    rArm.position.set(-0.36, 1.42, 0);
+    rArm.rotation.z = 0.4;
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.18, 0.52, 0.18);
+    const lLeg = new THREE.Mesh(legGeo, pantMat);
+    lLeg.position.set(0.15, 0.76, 0);
+    const rLeg = new THREE.Mesh(legGeo, pantMat);
+    rLeg.position.set(-0.15, 0.76, 0);
+
+    // Shoes
+    const shoeMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.28), shoeMat);
+    const lShoe = shoe.clone(); lShoe.position.set(0.15, 0.48, 0.06);
+    const rShoe = shoe.clone(); rShoe.position.set(-0.15, 0.48, 0.06);
+
+    group.add(torso, head, hair, lArm, rArm, lLeg, rLeg, lShoe, rShoe);
+
+    // Make NPC face the road (rotate randomly a bit)
+    group.rotation.y = Math.random() * Math.PI * 2;
+    group.position.set(pos.x, 0, pos.z);
+    scene.add(group);
+    return group;
+  },
+
+  // ── Beam of light (tall glowing column) ─────────────
+  _makeBeam(pos, color, scene) {
+    const geo = new THREE.CylinderGeometry(0.4, 0.4, 18, 6, 1, true);
+    const mat = new THREE.MeshLambertMaterial({
+      color, transparent: true, opacity: 0.45, side: THREE.DoubleSide
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, 9, pos.z);
+    scene.add(mesh);
+    return mesh;
+  },
+
+  // ── Ground ring ─────────────────────────────────────
+  _makeRing(pos, color, scene) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(3.5, 0.3, 6, 22),
+      new THREE.MeshLambertMaterial({ color })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(pos.x, 0.15, pos.z);
+    scene.add(ring);
+    return ring;
+  },
+
+  _makeLight(pos, color, scene) {
+    const l = new THREE.PointLight(color, 1.8, 25);
+    l.position.set(pos.x, 5, pos.z);
+    scene.add(l);
+    return l;
+  },
+
+  // ── Package box that sits on the bike ───────────────
+  _makePackage(scene) {
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.45, 0.45),
+      new THREE.MeshLambertMaterial({ color: 0xcc8833 })
+    );
+    // Tape line
+    const tape = new THREE.Mesh(
+      new THREE.BoxGeometry(0.47, 0.08, 0.47),
+      new THREE.MeshLambertMaterial({ color: 0xffdd00 })
+    );
+    tape.position.y = 0;
+    box.add(tape);
+    scene.add(box);
+    return box;
+  },
+
+  // ── Start a new mission ──────────────────────────────
+  start() {
+    const scene = this._scene;
+    this._clearAll();
+
+    // Random road positions that are far enough apart
+    this.pickupPos   = CityBuilder.randomRoadPoint();
+    this.deliveryPos = CityBuilder.randomRoadPoint();
+    while (this.pickupPos.distanceTo(this.deliveryPos) < 90) {
+      this.deliveryPos = CityBuilder.randomRoadPoint();
+    }
+
+    // Offset shop slightly off the road centre so it sits on the footpath
+    const shopPos = this.pickupPos.clone();
+    shopPos.x += 5;   // nudge to the side
+
+    this.shopName = SHOP_NAMES[Math.floor(Math.random() * SHOP_NAMES.length)];
+    this.npcName  = NPC_NAMES [Math.floor(Math.random() * NPC_NAMES.length)];
+
+    const dist = this.pickupPos.distanceTo(this.deliveryPos);
+    this.reward   = Math.round(60 + dist * 0.65 + Math.random() * 60);
+    this.timeLeft = Math.max(70, Math.round(dist * 0.75 + 35));
+    this.state    = 'to_pickup';
+
+    // Build shop at pickup position
+    this._shopGroup   = this._buildShop(shopPos, scene);
+    this._pickupBeam  = this._makeBeam(this.pickupPos, 0x00e5ff, scene);
+    this._pickupRing  = this._makeRing(this.pickupPos, 0x00e5ff, scene);
+    this._pickupLight = this._makeLight(this.pickupPos, 0x00e5ff, scene);
+
+    // Build NPC at delivery — hidden until package is picked up
+    this._npcGroup    = this._buildNPC(this.deliveryPos, scene);
+    this._deliverBeam = this._makeBeam(this.deliveryPos, 0xff4444, scene);
+    this._deliverRing = this._makeRing(this.deliveryPos, 0xff4444, scene);
+    this._deliverLight= this._makeLight(this.deliveryPos, 0xff4444, scene);
+
+    // Hide delivery objects until pickup done
+    this._setDeliveryVisible(false);
+  },
+
+  _setDeliveryVisible(v) {
+    if (this._npcGroup)    this._npcGroup.visible    = v;
+    if (this._deliverBeam) this._deliverBeam.visible  = v;
+    if (this._deliverRing) this._deliverRing.visible  = v;
+    if (this._deliverLight)this._deliverLight.visible = v;
+  },
+
+  _clearAll() {
+    const s = this._scene;
+    const rem = (o) => { if (o) s.remove(o); };
+    rem(this._shopGroup);
+    rem(this._npcGroup);
+    rem(this._pickupBeam);
+    rem(this._deliverBeam);
+    rem(this._pickupRing);
+    rem(this._deliverRing);
+    rem(this._pickupLight);
+    rem(this._deliverLight);
+    if (this._packageMesh) { s.remove(this._packageMesh); this._packageMesh = null; }
+    this._shopGroup = this._npcGroup = null;
+    this._pickupBeam = this._deliverBeam = null;
+    this._pickupRing = this._deliverRing = null;
+    this._pickupLight = this._deliverLight = null;
+  },
+
+  update(delta, bikePos) {
+    if (this.state === 'idle') return null;
+
+    // Countdown timer
+    this.timeLeft -= delta;
+    if (this.timeLeft <= 0) {
+      this._clearAll();
+      this.state = 'idle';
+      return { type: 'failed' };
+    }
+
+    // Gently spin beams and bob NPC
+    const t = performance.now() * 0.001;
+    if (this._pickupBeam)  this._pickupBeam.rotation.y  += 0.018;
+    if (this._deliverBeam) this._deliverBeam.rotation.y += 0.018;
+    // NPC gentle bob up/down
+    if (this._npcGroup && this.state === 'to_delivery') {
+      this._npcGroup.position.y = Math.sin(t * 2) * 0.08;
+      this._npcGroup.rotation.y += 0.005; // slowly turn to face player
+    }
+    // Package follows bike when carrying
+    if (this._packageMesh && this.state === 'to_delivery') {
+      this._packageMesh.position.set(
+        bikePos.x,
+        1.6,
+        bikePos.z
+      );
+    }
+
+    const PICKUP_RANGE  = 7;
+    const DELIVER_RANGE = 7;
+
+    if (this.state === 'to_pickup') {
+      if (bikePos.distanceTo(this.pickupPos) < PICKUP_RANGE) {
+        // Package picked up from shop!
+        this.state = 'to_delivery';
+        // Hide pickup things
+        if (this._shopGroup)   this._shopGroup.visible   = false;
+        if (this._pickupBeam)  this._pickupBeam.visible  = false;
+        if (this._pickupRing)  this._pickupRing.visible  = false;
+        if (this._pickupLight) this._pickupLight.visible = false;
+        // Show delivery NPC
+        this._setDeliveryVisible(true);
+        // Attach package box to bike
+        this._packageMesh = this._makePackage(this._scene);
+        return { type: 'picked_up', shop: this.shopName, npc: this.npcName };
+      }
+    } else if (this.state === 'to_delivery') {
+      if (bikePos.distanceTo(this.deliveryPos) < DELIVER_RANGE) {
+        // Delivered to NPC!
+        const timeBonus = this.timeLeft / MISSION_TIME;
+        const earned    = Math.round(this.reward * Math.max(timeBonus, 0.25));
+        this._clearAll();
+        this.state = 'idle';
+        return { type: 'delivered', reward: Math.max(earned, 25), npc: this.npcName };
+      }
+    }
+    return null;
+  },
+
+  getTargetPos() {
+    if (this.state === 'to_pickup')   return this.pickupPos;
+    if (this.state === 'to_delivery') return this.deliveryPos;
+    return null;
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 7. LIGHTING – Permanent bright daytime, no cycle
+// ──────────────────────────────────────────────────────
+const DayNight = {
+  init(scene, renderer) {
+    // Bright ambient so city is always well lit
+    const ambient = new THREE.AmbientLight(0xffffff, 0.75);
+    scene.add(ambient);
+
+    // Main sun – fixed high position, warm white
+    const sun = new THREE.DirectionalLight(0xfff8ee, 0.9);
+    sun.position.set(100, 160, 80);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(512, 512);
+    sun.shadow.camera.near   = 1;
+    sun.shadow.camera.far    = 500;
+    sun.shadow.camera.left   = -180;
+    sun.shadow.camera.right  =  180;
+    sun.shadow.camera.top    =  180;
+    sun.shadow.camera.bottom = -180;
+    scene.add(sun);
+
+    // Soft fill light from the opposite side
+    const fill = new THREE.DirectionalLight(0xaaccff, 0.35);
+    fill.position.set(-80, 60, -60);
+    scene.add(fill);
+
+    // Sky blue background
+    renderer.setClearColor(0x87ceeb, 1);
+
+    // Update indicator once
+    const el = document.getElementById('timeIndicator');
+    if (el) el.textContent = '🌞 DAY';
+  },
+
+  // Called every frame – nothing changes, just return dayFactor=1
+  update(delta) {
+    return 1;
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 8. MINIMAP
+// ──────────────────────────────────────────────────────
+const Minimap = {
+  canvas: null,
+  ctx: null,
+  size: 130,
+  range: 180,   // world units visible on map
+
+  init() {
+    this.canvas = document.getElementById('minimapCanvas');
+    this.ctx    = this.canvas.getContext('2d');
+  },
+
+  draw(bikePos, bikeHeading) {
+    const ctx  = this.ctx;
+    const s    = this.size;
+    const half = s / 2;
+    const scale = s / (this.range * 2);
+
+    ctx.clearRect(0, 0, s, s);
+
+    // Clip to circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(half, half, half - 1, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Background
+    ctx.fillStyle = MINIMAP_BLOCK;
+    ctx.fillRect(0, 0, s, s);
+
+    // Draw road grid (relative to player)
+    const step = (BLOCK_SIZE + ROAD_WIDTH) * scale;
+    ctx.fillStyle = MINIMAP_ROAD;
+
+    // Vertical roads
+    for (let wx = -CITY_SIZE; wx <= CITY_SIZE; wx += BLOCK_SIZE + ROAD_WIDTH) {
+      const sx = half + (wx - bikePos.x) * scale;
+      const sw = ROAD_WIDTH * scale;
+      ctx.fillRect(sx - sw / 2, 0, sw, s);
+    }
+    // Horizontal roads
+    for (let wz = -CITY_SIZE; wz <= CITY_SIZE; wz += BLOCK_SIZE + ROAD_WIDTH) {
+      const sy = half + (wz - bikePos.z) * scale;
+      const sh = ROAD_WIDTH * scale;
+      ctx.fillRect(0, sy - sh / 2, s, sh);
+    }
+
+    // Pickup marker
+    if (Missions.state === 'to_pickup' && Missions.pickupPos) {
+      this._drawDot(ctx, bikePos, Missions.pickupPos, scale, half, MINIMAP_PICKUP, 6);
+    }
+    if (Missions.state === 'to_delivery' && Missions.deliveryPos) {
+      this._drawDot(ctx, bikePos, Missions.deliveryPos, scale, half, MINIMAP_DROP, 6);
+    }
+
+    // Traffic dots
+    for (const v of Traffic.vehicles) {
+      const vp = v.mesh.position;
+      const dx = vp.x - bikePos.x;
+      const dz = vp.z - bikePos.z;
+      if (Math.abs(dx) < this.range && Math.abs(dz) < this.range) {
+        this._drawDot(ctx, bikePos, vp, scale, half, '#ffaa00', 3);
+      }
+    }
+
+    // Player arrow (centre)
+    ctx.save();
+    ctx.translate(half, half);
+    ctx.rotate(-bikeHeading);
+    ctx.fillStyle = MINIMAP_PLAYER;
+    ctx.beginPath();
+    ctx.moveTo(0, -7);
+    ctx.lineTo(4, 5);
+    ctx.lineTo(-4, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore(); // end clip
+  },
+
+  _drawDot(ctx, origin, worldPos, scale, half, color, r) {
+    const sx = half + (worldPos.x - origin.x) * scale;
+    const sy = half + (worldPos.z - origin.z) * scale;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 9. UI MANAGER
+// ──────────────────────────────────────────────────────
+const UI = {
+  _shopMode: 'bike',
+  _toastTimer: null,
+
+  init() {
+    this._showScreen('menuScreen');
+  },
+
+  _showScreen(id) {
+    ['menuScreen','shopScreen','hud'].forEach(s => {
+      document.getElementById(s).classList.add('hidden');
+    });
+    document.getElementById(id).classList.remove('hidden');
+  },
+
+  showHUD() {
+    this._showScreen('hud');
+  },
+
+  updateHUD(save, mission) {
+    // Coins
+    document.getElementById('coinValue').textContent = save.coins;
+
+    // Speed
+    document.getElementById('speedValue').textContent = Moto.getSpeedKmh();
+
+    // Mission
+    if (mission.state === 'idle') {
+      document.getElementById('missionTitle').textContent = 'NO ACTIVE MISSION';
+      document.getElementById('missionDesc').textContent  = 'Press E or Accept Mission';
+      document.getElementById('missionTimer').textContent = '';
+    } else if (mission.state === 'to_pickup') {
+      const dist = Math.round(Moto.position.distanceTo(mission.pickupPos));
+      document.getElementById('missionTitle').textContent = '📦 GO TO PICKUP';
+      document.getElementById('missionDesc').textContent  = `${dist}m away • Reward: 🪙${mission.reward}`;
+      document.getElementById('missionTimer').textContent = this._formatTime(mission.timeLeft);
+    } else if (mission.state === 'to_delivery') {
+      const dist = Math.round(Moto.position.distanceTo(mission.deliveryPos));
+      document.getElementById('missionTitle').textContent = '🏠 DELIVER PACKAGE';
+      document.getElementById('missionDesc').textContent  = `${dist}m to drop-off • Reward: 🪙${mission.reward}`;
+      document.getElementById('missionTimer').textContent = this._formatTime(mission.timeLeft);
+    }
+  },
+
+  _formatTime(s) {
+    const m = Math.floor(Math.max(0, s) / 60);
+    const sec = Math.floor(Math.max(0, s) % 60);
+    return `⏱ ${m}:${sec.toString().padStart(2,'0')}`;
+  },
+
+  toast(msg, duration = 2500) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.opacity = '1';
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => { el.style.opacity = '0'; }, duration);
+  },
+
+  openShop(mode) {
+    this._shopMode = mode;
+    const save = Save.load();
+    document.getElementById('shopTitle').textContent = mode === 'bike' ? '🏍 Bike Shop' : '🎨 Skins';
+    document.getElementById('coinDisplayShop').textContent = `🪙 ${save.coins}`;
+
+    const items = mode === 'bike' ? BIKES : SKINS;
+    const owned    = mode === 'bike' ? save.ownedBikes : save.ownedSkins;
+    const equipped = mode === 'bike' ? save.equippedBike : save.equippedSkin;
+
+    const grid = document.getElementById('shopGrid');
+    grid.innerHTML = '';
+
+    for (const item of items) {
+      const div = document.createElement('div');
+      const isOwned    = owned.includes(item.id);
+      const isEquipped = equipped === item.id;
+
+      div.className = 'shop-item' + (isEquipped ? ' equipped' : isOwned ? ' owned' : '');
+      div.innerHTML = `
+        <div class="shop-icon">${item.icon}</div>
+        <h3>${item.name}</h3>
+        <div class="stat">${mode === 'bike' ? `Top: ${item.speed} km/h` : item.desc || ''}</div>
+        <div class="price">${isEquipped ? '✓ Equipped' : isOwned ? 'Equip' : `🪙 ${item.price}`}</div>
+      `;
+      div.addEventListener('click', () => this._shopAction(item, mode, save));
+      grid.appendChild(div);
+    }
+
+    this._showScreen('shopScreen');
+  },
+
+  _shopAction(item, mode, save) {
+    const owned    = mode === 'bike' ? save.ownedBikes : save.ownedSkins;
+    const isOwned  = owned.includes(item.id);
+
+    if (isOwned) {
+      // Equip it
+      if (mode === 'bike') save.equippedBike = item.id;
+      else                 save.equippedSkin = item.id;
+      Save.save(save);
+      // Rebuild bike if in game
+      if (!document.getElementById('hud').classList.contains('hidden')) {
+        const bikeData = BIKES.find(b => b.id === save.equippedBike);
+        const skinData = SKINS.find(s => s.id === save.equippedSkin);
+        Moto.create(Game._scene, bikeData, skinData);
+      }
+      this.toast(`Equipped ${item.name}!`);
+    } else if (save.coins >= item.price) {
+      // Buy
+      save.coins -= item.price;
+      if (mode === 'bike') save.ownedBikes.push(item.id);
+      else                 save.ownedSkins.push(item.id);
+      Save.save(save);
+      this.toast(`Bought ${item.name}! 🎉`);
+    } else {
+      this.toast(`Need 🪙${item.price - save.coins} more coins!`);
+    }
+
+    // Refresh grid
+    this.openShop(mode);
+  },
+
+  closeShop() {
+    if (Game.running) {
+      this.showHUD();
+    } else {
+      this._showScreen('menuScreen');
+    }
+  },
+
+  resetSave() {
+    if (confirm('Reset all progress?')) Save.reset();
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 10. MOBILE CONTROLS
+// ──────────────────────────────────────────────────────
+const MobileControls = {
+  joystickActive: false,
+  joystickId: null,
+  joystickOrigin: { x: 0, y: 0 },
+  acceling: false,
+  braking: false,
+
+  init() {
+    const isMobile = /Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent)
+      || window.innerWidth <= 900;
+
+    const ctrl = document.getElementById('mobileControls');
+    if (isMobile) {
+      ctrl.style.display = 'block';
+      this._setupJoystick();
+      this._setupButtons();
+    }
+  },
+
+  _setupJoystick() {
+    const zone  = document.getElementById('joystickZone');
+    const thumb = document.getElementById('joystickThumb');
+
+    zone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      this.joystickActive = true;
+      this.joystickId = t.identifier;
+      const rect = zone.getBoundingClientRect();
+      this.joystickOrigin = {
+        x: rect.left + rect.width / 2,
+        y: rect.top  + rect.height / 2,
+      };
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (!this.joystickActive) return;
+      for (const t of e.changedTouches) {
+        if (t.identifier !== this.joystickId) continue;
+        const dx = t.clientX - this.joystickOrigin.x;
+        const dy = t.clientY - this.joystickOrigin.y;
+        const maxR = 40;
+        const dist = Math.min(Math.sqrt(dx*dx+dy*dy), maxR);
+        const angle = Math.atan2(dy, dx);
+        const clampX = Math.cos(angle) * dist;
+        const clampY = Math.sin(angle) * dist;
+
+        thumb.style.left = (40 + clampX) + 'px';
+        thumb.style.top  = (40 + clampY) + 'px';
+
+        // Map to input
+        const nx = clampX / maxR;
+        const ny = clampY / maxR;
+        Moto.input.left    = nx < -0.3;
+        Moto.input.right   = nx >  0.3;
+        Moto.input.forward = ny < -0.3;
+        Moto.input.back    = ny >  0.3;
+      }
+    }, { passive: false });
+
+    const endJoy = () => {
+      this.joystickActive = false;
+      thumb.style.left = '40px';
+      thumb.style.top  = '40px';
+      Moto.input.left = Moto.input.right = Moto.input.forward = Moto.input.back = false;
+    };
+    window.addEventListener('touchend',    endJoy);
+    window.addEventListener('touchcancel', endJoy);
+  },
+
+  _setupButtons() {
+    const btnAccel = document.getElementById('btnAccel');
+    const btnBrake = document.getElementById('btnBrake');
+
+    btnAccel.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      Moto.input.forward = true;
+    }, { passive: false });
+    btnAccel.addEventListener('touchend', () => { Moto.input.forward = false; });
+
+    btnBrake.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      Moto.input.back = true;
+    }, { passive: false });
+    btnBrake.addEventListener('touchend', () => { Moto.input.back = false; });
+  },
+};
+
+
+// ──────────────────────────────────────────────────────
+// 11. GAME CONTROLLER
+// ──────────────────────────────────────────────────────
+const Game = {
+  running: false,
+  paused: false,
+  _scene: null,
+  _camera: null,
+  _renderer: null,
+  _clock: null,
+  _keys: {},
+  _save: null,
+  _buildings: [],
+
+  // Camera follow offsets
+  _camOffset: new THREE.Vector3(0, 5.5, -11),
+  _camLookOffset: new THREE.Vector3(0, 1.2, 3),
+
+  init() {
+    this._progress('Setting up renderer…', 5);
+
+    const canvas   = document.getElementById('gameCanvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'low-power' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type    = THREE.BasicShadowMap; // fast for mobile
+    this._renderer = renderer;
+
+    const scene = new THREE.Scene();
+    scene.fog   = new THREE.Fog(0x87ceeb, 100, 300); // permanent day sky fog
+    this._scene = scene;
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 600);
+    this._camera = camera;
+
+    this._clock = new THREE.Clock();
+
+    // Keyboard
+    window.addEventListener('keydown', (e) => {
+      this._keys[e.code] = true;
+      if (e.code === 'KeyP' || e.code === 'Escape') this.togglePause();
+      if (e.code === 'KeyE') this.acceptMission();
+    });
+    window.addEventListener('keyup', (e) => { this._keys[e.code] = false; });
+
+    // Resize
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    this._progress('Building the city…', 20);
+    setTimeout(() => {
+      this._buildWorld();
+    }, 50);
+  },
+
+  _progress(text, pct) {
+    document.getElementById('loadText').textContent = text;
+    document.getElementById('loadFill').style.width = pct + '%';
+  },
+
+  _buildWorld() {
+    this._progress('Laying roads…', 40);
+    const buildingMeshes = CityBuilder.build(this._scene);
+    this._buildings = CityBuilder.buildingData || [];
+
+    this._progress('Adding traffic…', 60);
+    Traffic.create(this._scene);
+
+    this._progress('Setting up lighting…', 75);
+    DayNight.init(this._scene, this._renderer);
+
+    Missions.init(this._scene);
+    Minimap.init();
+    MobileControls.init();
+
+    this._progress('Loading complete!', 100);
+    setTimeout(() => {
+      document.getElementById('loadingScreen').style.display = 'none';
+      UI.init();
+    }, 400);
+  },
+
+  startGame() {
+    this._save = Save.load();
+
+    const bikeData = BIKES.find(b => b.id === this._save.equippedBike) || BIKES[0];
+    const skinData = SKINS.find(s => s.id === this._save.equippedSkin) || SKINS[0];
+
+    // Spawn on the FIRST road intersection (0,0 is always a road cross)
+    // Roads are at multiples of (BLOCK_SIZE + ROAD_WIDTH) = 52
+    // So 0,0 is a safe guaranteed road position
+    Moto.position.set(0, 0, 0);
+    Moto.speed   = 0;
+    Moto.heading = 0;
+    Moto.create(this._scene, bikeData, skinData);
+
+    UI.showHUD();
+    this.running = true;
+    this.paused  = false;
+
+    setTimeout(() => {
+      UI.toast('🏍 Welcome! Press E to accept a delivery mission!', 3500);
+    }, 600);
+
+    if (!this._loopStarted) {
+      this._loopStarted = true;
+      this._loop();
+    }
+  },
+
+  acceptMission() {
+    if (!this.running || this.paused) return;
+    if (Missions.state !== 'idle') {
+      UI.toast('Mission already active!');
+      return;
+    }
+    Missions.start();
+    UI.toast(`🏪 Jao ${Missions.shopName} se package uthao! (Cyan beam dekho)`);
+  },
+
+  togglePause() {
+    if (!this.running) return;
+    this.paused = !this.paused;
+    document.getElementById('pauseOverlay').classList.toggle('visible', this.paused);
+    if (!this.paused) this._clock.getDelta(); // drain accumulated delta
+  },
+
+  backToMenu() {
+    this.paused  = false;
+    this.running = false;
+    Missions.state = 'idle';
+    Missions._clearAll();   // was _clearMarkers (old name) – now fixed
+    document.getElementById('pauseOverlay').classList.remove('visible');
+    UI._showScreen('menuScreen');
+  },
+
+  _loop() {
+    requestAnimationFrame(() => this._loop());
+
+    const delta = Math.min(this._clock.getDelta(), 0.05); // cap at 50ms
+
+    if (!this.running || this.paused) {
+      this._renderer.render(this._scene, this._camera);
+      return;
+    }
+
+    // ── Input → Moto ─────────────────────────────
+    const k = this._keys;
+    Moto.input.forward = !!(k['ArrowUp']    || k['KeyW']);
+    Moto.input.back    = !!(k['ArrowDown']  || k['KeyS']);
+    Moto.input.left    = !!(k['ArrowLeft']  || k['KeyA']);
+    Moto.input.right   = !!(k['ArrowRight'] || k['KeyD']);
+
+    // Mobile joystick may have overridden above – that's fine; values set there
+
+    Moto.update(delta, this._buildings);
+
+    // ── Camera follow ─────────────────────────────
+    const bikePos = Moto.position;
+    const heading = Moto.heading;
+
+    // Rotate offset by bike heading
+    const cosH = Math.cos(heading), sinH = Math.sin(heading);
+    const camOff = this._camOffset.clone();
+    const rotX   = camOff.x * cosH + camOff.z * sinH;
+    const rotZ   = -camOff.x * sinH + camOff.z * cosH;
+    const targetCamPos = new THREE.Vector3(
+      bikePos.x + rotX,
+      bikePos.y + camOff.y,
+      bikePos.z + rotZ
+    );
+    this._camera.position.lerp(targetCamPos, 0.1 * delta * 60);
+
+    const lookTarget = new THREE.Vector3(
+      bikePos.x + Math.sin(heading) * this._camLookOffset.z,
+      bikePos.y + this._camLookOffset.y,
+      bikePos.z + Math.cos(heading) * this._camLookOffset.z
+    );
+    this._camera.lookAt(lookTarget);
+
+    // ── Systems update ────────────────────────────
+    Traffic.update(delta);
+    DayNight.update(delta); // static – always returns 1
+
+    // ── Mission check ─────────────────────────────
+    const mResult = Missions.update(delta, Moto.position);
+    if (mResult) {
+      this._save = Save.load();
+      if (mResult.type === 'picked_up') {
+        UI.toast(`📦 Package from ${mResult.shop}! Deliver to ${mResult.npc}! 🏃`);
+      } else if (mResult.type === 'delivered') {
+        this._save.coins += mResult.reward;
+        this._save.totalDeliveries++;
+        Save.save(this._save);
+        UI.toast(`✅ ${mResult.npc} ne receive kiya! +🪙${mResult.reward}`, 3000);
+        setTimeout(() => Missions.start(), 2800);
+      } else if (mResult.type === 'failed') {
+        UI.toast('⏱ Time out! Mission fail ho gayi.');
+        setTimeout(() => Missions.start(), 2000);
+      }
+    }
+
+    // ── UI update ─────────────────────────────────
+    UI.updateHUD(this._save, Missions);
+
+    // ── Minimap ───────────────────────────────────
+    Minimap.draw(Moto.position, Moto.heading);
+
+    // ── Render ────────────────────────────────────
+    this._renderer.render(this._scene, this._camera);
+  },
+};
+
+// ── Boot ──────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  Game.init();
+});
+</script>
+</body>
+</html>
